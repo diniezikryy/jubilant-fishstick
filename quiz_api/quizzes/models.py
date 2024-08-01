@@ -1,13 +1,15 @@
 from django.db import models
 from documents.models import PDF
+from django.contrib.auth.models import User
 
 # Create your models here.
 class Quiz(models.Model):
-    pdf = models.ForeignKey(PDF, on_delete=models.CASCADE, related_name='quizzes')
     title = models.CharField(max_length=200)
     created_at = models.DateTimeField(auto_now_add=True)
     num_questions = models.IntegerField()
     time_limit = models.IntegerField(help_text="Time limit in minutes", null=True, blank=True)
+    pdf = models.ForeignKey(PDF, on_delete=models.SET_NULL, related_name='quizzes', null=True, blank=True)
+    creator = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_quizzes', default=1)
 
     def __str__(self):
         return self.title
