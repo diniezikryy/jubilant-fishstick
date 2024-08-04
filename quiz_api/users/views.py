@@ -2,7 +2,6 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from django.contrib.auth.models import User
 from .serializers import UserSerializer, CustomTokenObtainPairSerializer
 
 
@@ -17,6 +16,7 @@ class RegisterView(APIView):
 
 class CookieTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
+
     def finalize_response(self, request, response, *args, **kwargs):
         if response.data.get('refresh'):
             cookie_max_age = 3600 * 24 * 1  # 1 day
