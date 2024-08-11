@@ -74,7 +74,6 @@ SIMPLE_JWT['AUTH_COOKIE_HTTP_ONLY'] = True
 SIMPLE_JWT['AUTH_COOKIE_PATH'] = '/'
 SIMPLE_JWT['AUTH_COOKIE_SAMESITE'] = 'Lax'
 
-
 # Application definition
 
 INSTALLED_APPS = [
@@ -88,6 +87,7 @@ INSTALLED_APPS = [
     # 3rd party apps
     "rest_framework",
     "rest_framework_simplejwt",
+    'rest_framework_nested',
     'corsheaders',
 
     # internal apps
@@ -187,5 +187,3 @@ CORS_ORIGIN_WHITELIST = [
     'http://localhost:3000',
     'http://127.0.0.1:3000',
 ]
-
-

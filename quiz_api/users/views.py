@@ -114,7 +114,7 @@ class RegisterView(APIView):
 @authentication_classes([CustomJWTAuthentication])
 @permission_classes([IsAuthenticated])
 def auth_check(request):
-    return Response({"authenticated": True})
+    return Response({"authenticated": True, "username": request.user.username})
 
 
 class LogoutView(APIView):

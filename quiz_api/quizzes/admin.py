@@ -3,17 +3,16 @@ from .models import Quiz, Question, Answer
 
 class AnswerInline(admin.TabularInline):
     model = Answer
-    extra = 4
+    extra = 1
 
-@admin.register(Question)
 class QuestionAdmin(admin.ModelAdmin):
-    list_display = ('quiz', 'text', 'question_type', 'difficulty')
-    list_filter = ('quiz', 'question_type', 'difficulty')
-    search_fields = ('text', 'quiz__title')
+    list_display = ('text', 'quiz')
+    list_filter = ('quiz',)
     inlines = [AnswerInline]
 
-@admin.register(Quiz)
 class QuizAdmin(admin.ModelAdmin):
-    list_display = ('title', 'creator', 'pdf', 'created_at', 'num_questions', 'time_limit')
-    list_filter = ('created_at', 'creator')
-    search_fields = ('title', 'creator__username', 'pdf__title')
+    list_display = ('title', 'creator', 'created_at')
+    list_filter = ('creator', 'created_at')
+
+admin.site.register(Quiz, QuizAdmin)
+admin.site.register(Question, QuestionAdmin)
