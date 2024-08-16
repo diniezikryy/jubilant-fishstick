@@ -6,20 +6,27 @@ from django.urls import reverse
 from quizzes.models import Quiz, Question, Answer
 
 class QuizModelTest(TestCase):
+    """Test case for the Quiz model"""
+
     def test_quiz_creation(self):
+        """Test creating a new quiz"""
         user = User.objects.create_user(username='testuser', password='12345')
         quiz = Quiz.objects.create(title='Test Quiz', creator=user)
         self.assertEqual(quiz.title, 'Test Quiz')
         self.assertEqual(quiz.creator, user)
 
 class QuestionAPITest(APITestCase):
+    """Test case for the Question API endpoints"""
+
     def setUp(self):
+        """Set up test data"""
         self.user = User.objects.create_user(username='testuser', password='12345')
         self.client.force_authenticate(user=self.user)
         self.quiz = Quiz.objects.create(title='Test Quiz', creator=self.user)
         self.base_url = f'/api/quizzes/{self.quiz.id}/questions/'
 
     def test_create_question(self):
+        """Test creating a new question with answers"""
         data = {
             'text': 'Test question?',
             'question_type': 'mcq',
@@ -33,12 +40,14 @@ class QuestionAPITest(APITestCase):
         self.assertEqual(Question.objects.count(), 1)
 
     def test_list_questions(self):
+        """Test listing all questions for a quiz"""
         Question.objects.create(quiz=self.quiz, text='Test question?', question_type='mcq')
         response = self.client.get(self.base_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
 
     def test_retrieve_question(self):
+        """Test retrieving a specific question"""
         question = Question.objects.create(quiz=self.quiz, text='Test question?', question_type='mcq')
         url = f'{self.base_url}{question.id}/'
         response = self.client.get(url)
@@ -46,6 +55,7 @@ class QuestionAPITest(APITestCase):
         self.assertEqual(response.data['text'], 'Test question?')
 
     def test_update_question(self):
+        """Test updating a question"""
         question = Question.objects.create(quiz=self.quiz, text='Test question?', question_type='mcq')
         url = f'{self.base_url}{question.id}/'
         data = {'text': 'Updated question?', 'question_type': 'mcq'}
@@ -54,6 +64,7 @@ class QuestionAPITest(APITestCase):
         self.assertEqual(Question.objects.get(pk=question.pk).text, 'Updated question?')
 
     def test_delete_question(self):
+        """Test deleting a question"""
         question = Question.objects.create(quiz=self.quiz, text='Test question?', question_type='mcq')
         url = f'{self.base_url}{question.id}/'
         response = self.client.delete(url)
@@ -61,13 +72,17 @@ class QuestionAPITest(APITestCase):
         self.assertEqual(Question.objects.count(), 0)
 
 class QuestionAnswerAPITest(APITestCase):
+    """Test case for Question-Answer interactions in the API"""
+
     def setUp(self):
+        """Set up test data"""
         self.user = User.objects.create_user(username='testuser', password='12345')
         self.client.force_authenticate(user=self.user)
         self.quiz = Quiz.objects.create(title='Test Quiz', creator=self.user)
         self.base_url = f'/api/quizzes/{self.quiz.id}/questions/'
 
     def test_create_question_with_answers(self):
+        """Test creating a question with multiple answers"""
         data = {
             'text': 'Test question?',
             'question_type': 'mcq',
@@ -88,6 +103,7 @@ class QuestionAnswerAPITest(APITestCase):
         self.assertTrue(answers.filter(text='Wrong answer', is_correct=False).exists())
 
     def test_update_question_with_answers(self):
+        """Test updating a question and its answers"""
         question = Question.objects.create(quiz=self.quiz, text='Original question?', question_type='mcq')
         Answer.objects.create(question=question, text='Original answer 1', is_correct=True)
         Answer.objects.create(question=question, text='Original answer 2', is_correct=False)
@@ -114,6 +130,7 @@ class QuestionAnswerAPITest(APITestCase):
         self.assertFalse(answers.filter(text='Original answer 2').exists())
 
     def test_retrieve_question_with_answers(self):
+        """Test retrieving a question with its answers"""
         question = Question.objects.create(quiz=self.quiz, text='Test question?', question_type='mcq')
         Answer.objects.create(question=question, text='Correct answer', is_correct=True)
         Answer.objects.create(question=question, text='Wrong answer', is_correct=False)
@@ -127,6 +144,7 @@ class QuestionAnswerAPITest(APITestCase):
         self.assertTrue(any(answer['text'] == 'Wrong answer' and not answer['is_correct'] for answer in response.data['answers']))
 
     def test_delete_question_cascades_to_answers(self):
+        """Test that deleting a question also deletes its associated answers"""
         question = Question.objects.create(quiz=self.quiz, text='Test question?', question_type='mcq')
         Answer.objects.create(question=question, text='Answer 1', is_correct=True)
         Answer.objects.create(question=question, text='Answer 2', is_correct=False)
