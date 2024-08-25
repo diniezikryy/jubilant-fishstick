@@ -14,6 +14,9 @@ class QuizViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(creator=self.request.user)
 
+    def get_queryset(self):
+        return Quiz.objects.prefetch_related('questions', 'questions__answers')
+
 
 class QuestionViewSet(viewsets.ModelViewSet):
     serializer_class = QuestionSerializer
@@ -28,6 +31,33 @@ class QuestionViewSet(viewsets.ModelViewSet):
         """
         quiz_id = self.kwargs['quiz_pk']
         return Question.objects.filter(quiz_id=quiz_id)
+
+    def create(self, request, *args, **kwargs):
+        """
+        Create a new question for a specific quiz.
+
+        This method overrides the default create behavior to ensure that
+        the quiz context is passed to the serializer. It handles the creation
+        of a new question along with its associated answers in a single request.
+
+        Args:
+            request (Request): The HTTP request object containing the question data.
+            *args: Variable length argument list.
+            **kwargs: Arbitrary keyword arguments. Expected to contain 'quiz_pk'.
+
+        Returns:
+            Response: A DRF Response object with the serialized question data,
+                      HTTP 201 Created status, and appropriate headers.
+
+        Raises:
+            ValidationError: If the provided data is invalid.
+            Http404: If the specified quiz does not exist.
+        """
+        serializer = self.get_serializer(data=request.data, context={'view': self, 'request': request})
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
     def perform_create(self, serializer):
         """
@@ -100,5 +130,22 @@ class QuestionViewSet(viewsets.ModelViewSet):
 
 
 class AnswerViewSet(viewsets.ModelViewSet):
-    queryset = Answer.objects.all()
     serializer_class = AnswerSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        """
+        Retrieve all answers for a specified question within a specified quiz.
+        """
+        quiz_id = self.kwargs['quiz_pk']
+        question_id = self.kwargs['question_pk']
+        return Answer.objects.filter(question__id=question_id, question__quiz__id=quiz_id)
+
+    def perform_create(self, serializer):
+        """
+        Create a new answer for a specific question.
+        """
+        quiz_id = self.kwargs['quiz_pk']
+        question_id = self.kwargs['question_pk']
+        question = get_object_or_404(Question, id=question_id, quiz__id=quiz_id)
+        serializer.save(question=question)
