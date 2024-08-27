@@ -21,3 +21,8 @@ class QuizAttemptSerializer(serializers.ModelSerializer):
             return QuizAttempt.objects.create(user=user, **validated_data)
 
 
+class QuizAttemptsOverviewSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    title = serializers.CharField()
+    attempt_count = serializers.IntegerField()
+    highest_score = serializers.IntegerField(allow_null=True)

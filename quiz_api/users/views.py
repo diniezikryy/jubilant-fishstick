@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class CookieTokenObtainPairView(TokenObtainPairView):
     def finalize_response(self, request, response, *args, **kwargs):
         if response.data.get('access'):
-            access_max_age = 15 * 60  # 15 minutes
+            access_max_age = 60 * 60  # 1 hour
             refresh_max_age = 24 * 60 * 60  # 1 day
             response.set_cookie(
                 'access_token',
@@ -68,7 +68,7 @@ class CookieTokenRefreshView(TokenRefreshView):
 
     def finalize_response(self, request, response, *args, **kwargs):
         if response.data.get('access'):
-            access_max_age = 15 * 60  # 15 minutes
+            access_max_age = 60 * 60  # 1 hour
             response.set_cookie(
                 settings.SIMPLE_JWT['AUTH_COOKIE'],
                 response.data['access'],
@@ -88,7 +88,7 @@ class RegisterView(APIView):
             user = serializer.save()
             refresh = RefreshToken.for_user(user)
             response = Response(serializer.data, status=status.HTTP_201_CREATED)
-            access_max_age = 15 * 60  # 15 minutes
+            access_max_age = 60 * 60  # 1 hour
             refresh_max_age = 24 * 60 * 60  # 1 day
             response.set_cookie(
                 'access_token',
