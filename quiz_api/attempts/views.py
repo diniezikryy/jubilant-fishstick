@@ -23,13 +23,23 @@ class QuizAttemptViewSet(viewsets.ModelViewSet):
     serializer_class = QuizAttemptSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def list_by_quiz(self, request, quiz_id=None):
+        """
+        Custom action to retrieve quiz attempts filtered by quiz ID.
+        """
+        queryset = self.get_queryset().filter(quiz_id=quiz_id)
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
     def get_queryset(self):
         """
-        Get the list of quiz attempts for the current user.
-
-        Returns:
-            QuerySet: QuizAttempt objects filtered by the current user.
+        Optionally filter quiz attempts by quiz ID.
         """
+        quiz_id = self.request.query_params.get('quiz_id')
+        queryset = QuizAttempt.objects.filter(user=self.request.user)
+        if quiz_id:
+            queryset = queryset.filter(quiz_id=quiz_id)
+            return queryset
         return QuizAttempt.objects.filter(user=self.request.user)
 
     def perform_create(self, serializer):
