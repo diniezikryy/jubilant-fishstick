@@ -1,5 +1,5 @@
 import logging
-from django.db.models import Count, Max, Q
+from django.db.models import Count, Max, Q, Case, When, IntegerField, F
 from rest_framework import viewsets, permissions, status
 from rest_framework.views import APIView
 from rest_framework.decorators import action
@@ -33,14 +33,26 @@ class QuizAttemptViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """
-        Optionally filter quiz attempts by quiz ID.
+        Filter quiz attempts by quiz ID and annotate with correct and incorrect answer counts.
         """
         quiz_id = self.request.query_params.get('quiz_id')
         queryset = QuizAttempt.objects.filter(user=self.request.user)
+
         if quiz_id:
             queryset = queryset.filter(quiz_id=quiz_id)
-            return queryset
-        return QuizAttempt.objects.filter(user=self.request.user)
+
+        queryset = queryset.annotate(
+            total_questions=Count('user_answers'),
+            correct_answers=Count(
+                Case(
+                    When(user_answers__selected_answer__is_correct=True, then=1),
+                    output_field=IntegerField()
+                )
+            ),
+            incorrect_answers=F('total_questions') - F('correct_answers')
+        )
+
+        return queryset
 
     def perform_create(self, serializer):
         """
@@ -78,17 +90,20 @@ class QuizAttemptViewSet(viewsets.ModelViewSet):
                 f"User answer for question {question_id}: selected_answer={selected_answer_id}, text_answer={text_answer}")
 
         attempt.end_time = timezone.now()
-        attempt.score = self.calculate_score(attempt)
+        score_data = self.calculate_score(attempt)
+        attempt.score = score_data['score']
         attempt.save()
 
         logger.info(f"Attempt {attempt.id} submitted. Final score: {attempt.score}")
 
-        serializer = self.get_serializer(attempt)
-        return Response(serializer.data)
+        response_data = self.get_serializer(attempt).data
+        response_data.update(score_data)
+        return Response(response_data)
 
     def calculate_score(self, attempt):
         correct_answers = 0
         total_questions = attempt.quiz.questions.count()
+        incorrect_questions = []
 
         logger.info(f"Calculating score for attempt {attempt.id}")
 
@@ -99,13 +114,24 @@ class QuizAttemptViewSet(viewsets.ModelViewSet):
                     logger.info(f"Question {user_answer.question.id}: Correct answer selected")
                 else:
                     logger.info(f"Question {user_answer.question.id}: Incorrect answer selected")
+                    incorrect_questions.append({
+                        'question_id': user_answer.question.id,
+                        'question_text': user_answer.question.text,
+                        'selected_answer': user_answer.selected_answer.text if user_answer.selected_answer else None,
+                        'correct_answer': user_answer.question.answers.filter(is_correct=True).first().text
+                    })
             else:
                 logger.info(f"Question {user_answer.question.id}: Short answer question (not scored)")
 
         score = (correct_answers / total_questions) * 100 if total_questions > 0 else 0
         logger.info(f"Final score calculation: {correct_answers}/{total_questions} = {score}%")
 
-        return score
+        return {
+            'score': score,
+            'correct_answers': correct_answers,
+            'total_questions': total_questions,
+            'incorrect_questions': incorrect_questions
+        }
 
 
 class QuizAttemptsOverviewView(APIView):
