@@ -15,4 +15,6 @@ urlpatterns = [
     path('', include(router.urls)),
     path('<int:quiz_pk>/', include(quiz_router.urls)),
     path('<int:quiz_pk>/questions/<int:question_pk>/', include(question_router.urls)),
+    path('<int:pk>/upload_pdf/', QuizViewSet.as_view({'post': 'upload_pdf'}), name='quiz-upload-pdf'),
+    path('<int:pk>/add_selected_questions/', QuizViewSet.as_view({'post': 'add_selected_questions'}), name='quiz-add-selected-questions'),
 ]

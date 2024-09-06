@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Quiz, Question, Answer
+from .models import Quiz, Question, Answer, TempPDF, TempQuestion, TempAnswer
 
 
 class AnswerSerializer(serializers.ModelSerializer):
@@ -66,3 +66,23 @@ class QuizSerializer(serializers.ModelSerializer):
         model = Quiz
         fields = '__all__'
         read_only_fields = ['creator', 'created_at']
+
+
+class TempAnswerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TempAnswer
+        fields = ['id', 'text', 'is_correct']
+
+
+class TempQuestionSerializer(serializers.ModelSerializer):
+    temp_answers = TempAnswerSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = TempQuestion
+        fields = ['id', 'text', 'question_type', 'temp_answers']
+
+
+class TempPDFSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TempPDF
+        fields = ['id', 'file', 'uploaded_at']

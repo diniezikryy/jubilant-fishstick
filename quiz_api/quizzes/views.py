@@ -5,6 +5,14 @@ from rest_framework.response import Response
 from .models import Quiz, Question, Answer
 from .serializers import QuizSerializer, QuestionSerializer, AnswerSerializer
 
+# for the pdf upload and quiz generation
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
+from rest_framework.decorators import action
+from .models import TempPDF, TempQuestion, TempAnswer
+from .serializers import TempQuestionSerializer
+from .pdf_processor import process_pdf_and_generate_questions
+
 
 class QuizViewSet(viewsets.ModelViewSet):
     queryset = Quiz.objects.all()
@@ -17,6 +25,68 @@ class QuizViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return Quiz.objects.prefetch_related('questions', 'questions__answers')
 
+    # for the pdf upload and quiz generation
+    @action(detail=True, methods=['post'])
+    def upload_pdf(self, request, pk=None):
+        quiz = self.get_object()
+        pdf_file = request.FILES['pdf']
+
+        if not pdf_file:
+            return Response({'error': 'No PDF file provided'}, status=status.HTTP_400_BAD_REQUEST)
+
+        temp_pdf = TempPDF.objects.create(
+            user=request.user,
+            file=pdf_file,
+            quiz=quiz
+        )
+
+        try:
+            # process pdf and generate the questions
+            num_questions = process_pdf_and_generate_questions(temp_pdf.file.path, quiz)
+
+            # fetch the generated temp questions
+            temp_questions = TempQuestion.objects.filter(quiz=quiz)
+            serializer = TempQuestionSerializer(temp_questions, many=True)
+
+            return Response({
+                'message': f'{num_questions} questions generated',
+                'questions': serializer.data
+            }, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            # if an error occurs, delete the temp pdf and return an error response
+            temp_pdf.delete()
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['post'])
+    def add_selected_questions(self, request, pk=None):
+        quiz = self.get_object()
+        question_ids = request.data.get('question_ids', [])
+
+        if not question_ids:
+            return Response({'error': 'No question ids provided'}, status=status.HTTP_400_BAD_REQUEST)
+
+        selected_questions = TempQuestion.objects.filter(id__in=question_ids, quiz=quiz)
+        permanent_questions = []
+
+        for temp_question in selected_questions:
+            question = Question.objects.create(
+                quiz=quiz,
+                text=temp_question.text,
+                question_type=temp_question.question_type
+            )
+            for temp_answer in temp_question.temp_answers.all():
+                Answer.objects.create(
+                    question=question,
+                    text=temp_answer.text,
+                    is_correct=temp_answer.is_correct
+                )
+            permanent_questions.append(question)
+
+            # Delete all temporary questions for this quiz
+        TempQuestion.objects.filter(quiz=quiz).delete()
+
+        return Response({'success': f'{len(permanent_questions)} questions added to the quiz'})
 
 class QuestionViewSet(viewsets.ModelViewSet):
     serializer_class = QuestionSerializer

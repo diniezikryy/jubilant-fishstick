@@ -47,3 +47,38 @@ class Answer(models.Model):
 
     def __str__(self):
         return self.text
+
+
+class TempQuestion(models.Model):
+    QUESTION_TYPES = [
+        ('mcq', 'Multiple Choice'),
+        ('short_answer', 'Short Answer'),
+    ]
+
+    quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE, related_name='temp_questions')
+    text = models.TextField()
+    question_type = models.CharField(max_length=20, choices=QUESTION_TYPES, default='mcq')
+
+    def __str__(self):
+        return f"Temp: {self.text[:50]}"
+
+
+class TempAnswer(models.Model):
+    temp_question = models.ForeignKey(TempQuestion, on_delete=models.CASCADE, related_name='temp_answers')
+    text = models.CharField(max_length=200)
+    is_correct = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"Temp: {self.text}"
+
+class TempPDF(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='temp_pdfs')
+    quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE, related_name='temp_pdfs', null=True, blank=True)
+    file = models.FileField(upload_to='temp_pdfs/')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user.username}'s PDF uploaded at {self.uploaded_at}"
+
+
+
