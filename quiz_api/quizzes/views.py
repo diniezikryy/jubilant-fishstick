@@ -1,15 +1,14 @@
 from django.shortcuts import get_object_or_404
 from rest_framework import viewsets, permissions, status
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
 from .models import Quiz, Question, Answer
 from .serializers import QuizSerializer, QuestionSerializer, AnswerSerializer
 
 # for the pdf upload and quiz generation
-from django.core.files.storage import default_storage
-from django.core.files.base import ContentFile
 from rest_framework.decorators import action
-from .models import TempPDF, TempQuestion, TempAnswer
+from .models import TempPDF, TempQuestion
 from .serializers import TempQuestionSerializer
 from .pdf_processor import process_pdf_and_generate_questions
 
@@ -29,18 +28,22 @@ class QuizViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def upload_pdf(self, request, pk=None):
         quiz = self.get_object()
-        pdf_file = request.FILES['pdf']
-
-        if not pdf_file:
-            return Response({'error': 'No PDF file provided'}, status=status.HTTP_400_BAD_REQUEST)
-
-        temp_pdf = TempPDF.objects.create(
-            user=request.user,
-            file=pdf_file,
-            quiz=quiz
-        )
 
         try:
+            pdf_file = request.FILES['pdf']
+        except KeyError:
+            return Response({'error': 'No PDF file provided'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not pdf_file:
+            return Response({'error': 'Empty PDF file provided'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            temp_pdf = TempPDF.objects.create(
+                user=request.user,
+                file=pdf_file,
+                quiz=quiz
+            )
+
             # process pdf and generate the questions
             num_questions = process_pdf_and_generate_questions(temp_pdf.file.path, quiz)
 
@@ -53,9 +56,12 @@ class QuizViewSet(viewsets.ModelViewSet):
                 'questions': serializer.data
             }, status=status.HTTP_201_CREATED)
 
+        except ValidationError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             # if an error occurs, delete the temp pdf and return an error response
-            temp_pdf.delete()
+            if 'temp_pdf' in locals():
+                temp_pdf.delete()
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['post'])
@@ -87,6 +93,14 @@ class QuizViewSet(viewsets.ModelViewSet):
         TempQuestion.objects.filter(quiz=quiz).delete()
 
         return Response({'success': f'{len(permanent_questions)} questions added to the quiz'})
+
+    @action(detail=True, methods=['get'])
+    def temp_questions(self, request, pk=None):
+        quiz = self.get_object()
+        temp_questions = TempQuestion.objects.filter(quiz=quiz)
+        serializer = TempQuestionSerializer(temp_questions, many=True)
+        return Response(serializer.data)
+
 
 class QuestionViewSet(viewsets.ModelViewSet):
     serializer_class = QuestionSerializer

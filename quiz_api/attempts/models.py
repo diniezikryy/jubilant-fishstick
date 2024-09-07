@@ -3,6 +3,7 @@ from django.contrib.auth.models import User
 from django.utils import timezone
 from quizzes.models import Quiz, Question
 
+
 class QuizAttempt(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE)
@@ -12,6 +13,7 @@ class QuizAttempt(models.Model):
 
     def __str__(self):
         return f"{self.user.username}'s attempt on {self.quiz.title}"
+
 
 class UserAnswer(models.Model):
     quiz_attempt = models.ForeignKey(QuizAttempt, on_delete=models.CASCADE, related_name='user_answers')
