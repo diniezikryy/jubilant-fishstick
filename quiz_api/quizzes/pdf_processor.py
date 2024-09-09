@@ -3,79 +3,74 @@ import json
 from PyPDF2 import PdfReader
 from django.conf import settings
 from .models import TempQuestion, TempAnswer
+import re
 
 client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
 
 
-def extract_text_from_pdf(pdf_file):
+def extract_slides_from_pdf(pdf_file):
     reader = PdfReader(pdf_file)
-    text = ""
+    slides = []
+    slide_number = 1
+
     for page in reader.pages:
-        text += page.extract_text() + "\n\n"  # Add extra newlines between pages
-    return text
+        text = page.extract_text()
+
+        # Split the page content if it contains multiple slides
+        potential_slides = re.split(r'\n(?=(?:Slide|^\d+\.)\s*\n)', text, flags=re.MULTILINE)
+
+        for potential_slide in potential_slides:
+            if potential_slide.strip():  # Ignore empty slides
+                slides.append(f"Slide {slide_number}\n\n{potential_slide.strip()}\n")
+                slide_number += 1
+
+    return slides
 
 
-def split_text(text, max_chunk_size=8000):
-    words = text.split()
-    chunks = []
-    current_chunk = []
-    current_size = 0
-    for word in words:
-        if current_size + len(word) > max_chunk_size:
-            chunks.append(' '.join(current_chunk))
-            current_chunk = [word]
-            current_size = len(word)
-        else:
-            current_chunk.append(word)
-            current_size += len(word) + 1  # +1 for space
-    if current_chunk:
-        chunks.append(' '.join(current_chunk))
-    return chunks
+def generate_questions(slides):
+    all_slides = []
 
+    for i, slide in enumerate(slides, 1):
+        print(f"Processing Slide {i} of {len(slides)}...")
 
-def generate_questions(lecture_content):
-    chunks = split_text(lecture_content)
-    all_questions = []
+        if len(slide.split()) < 20:  # Skip slides with very little content
+            print(f"Skipping Slide {i} due to insufficient content.")
+            continue
 
-    for i, chunk in enumerate(chunks):
         prompt = f"""
-            You are an expert in creating comprehensive educational content. Based on the following lecture content (part {i + 1} of {len(chunks)}), generate multiple-choice questions that test general understanding of database concepts. Each question should have 4 options (A, B, C, D). Provide the correct answer for each question.
+        You are an expert in creating educational content about databases. Based on the following slide content (Slide {i} of {len(slides)}), generate multiple-choice questions that directly test the understanding of the information presented. Each question should have 4 options (A, B, C, D). Provide the correct answer for each question.
 
-            Important guidelines:
-            1. Focus ONLY on general concepts and principles, NOT on specific examples or sections from the lecture.
-            2. Do not reference any diagrams, images, or specific lecture sections (e.g., "STUDENT 29").
-            3. Create questions that can stand alone without needing to refer back to the lecture notes.
-            4. Avoid questions about specific database instances or examples used in the lecture.
-            5. Instead, formulate questions about general database principles, terminology, and concepts.
+        Guidelines:
+        1. Use ONLY the information explicitly stated in the slide content. Do not introduce any external knowledge or inferences.
+        2. Create questions that directly relate to the key points, definitions, and concepts presented in the slide.
+        3. Use the exact wording and terminology from the slide whenever possible.
+        4. Avoid creating questions about trivial details, slide titles, or formatting.
+        5. Generate 1-3 questions per slide, depending on the content density.
+        6. Ensure that the correct answer and at least one incorrect option are taken directly from the slide content.
+        7. If the slide doesn't contain enough substantial information to create meaningful questions, don't generate any questions for that slide.
 
-            Ensure that the questions:
-            1. Cover important database concepts mentioned in the content
-            2. Range from basic recall of definitions to complex application of database principles
-            3. Provide a thorough assessment of general database knowledge
-            4. Include questions about database design, normalization, keys, relationships, and other relevant topics
-            5. Can be answered by someone with a good understanding of database concepts, even if they haven't seen this specific lecture
-            6. Generate at least 30 questions, or more if the content warrants it
-
-            Format the output as a JSON object with the following structure:
-            {{
-                "questions": [
-                    {{
-                        "question": "Question text here",
-                        "options": {{
-                            "A": "Option A text",
-                            "B": "Option B text",
-                            "C": "Option C text",
-                            "D": "Option D text"
-                        }},
-                        "correct_answer": "Correct option letter"
+        Format the output as a JSON object with the following structure:
+        {{
+            "questions": [
+                {{
+                    "question_text": "Question text here",
+                    "options": {{
+                        "A": "Option A text",
+                        "B": "Option B text",
+                        "C": "Option C text",
+                        "D": "Option D text"
                     }},
-                    ...
-                ]
-            }}
+                    "correct_answer": "Correct option letter"
+                }},
+                ...
+            ]
+        }}
 
-            Lecture content (part {i + 1} of {len(chunks)}):
-            {chunk}
-            """
+        If no meaningful questions can be generated using only the slide content, return an empty questions array.
+
+        Slide content:
+        {slide}
+        """
 
         message = client.messages.create(
             model="claude-3-haiku-20240307",
@@ -89,38 +84,40 @@ def generate_questions(lecture_content):
             ]
         )
 
-        # Print the raw response
-        print(f"Raw response for chunk {i + 1}:")
-        print(message.content[0].text)
-        print("=" * 50)  # Separator for readability
-
         try:
-            chunk_questions = json.loads(message.content[0].text)
-            all_questions.extend(chunk_questions['questions'])
+            slide_questions = json.loads(message.content[0].text)
+            if slide_questions['questions']:
+                all_slides.append({
+                    "slide_number": i,
+                    "questions": slide_questions['questions']
+                })
         except json.JSONDecodeError as e:
-            print(f"Error decoding JSON for chunk {i + 1}: {e}")
-            # Optionally, you can continue to the next chunk instead of breaking
+            print(f"Error decoding JSON for Slide {i}: {e}")
             continue
 
-    return {"questions": all_questions}
+    return {"slides": all_slides}
 
 
 def process_pdf_and_generate_questions(pdf_file, quiz):
-    lecture_content = extract_text_from_pdf(pdf_file)
-    questions_data = generate_questions(lecture_content)
+    slides = extract_slides_from_pdf(pdf_file)
+    questions_data = generate_questions(slides)
 
-    for q_data in questions_data['questions']:
-        temp_question = TempQuestion.objects.create(
-            quiz=quiz,
-            text=q_data['question'],
-            question_type='mcq',
-        )
-
-        for key, value in q_data['options'].items():
-            TempAnswer.objects.create(
-                temp_question=temp_question,
-                text=value,
-                is_correct=(key == q_data['correct_answer']),
+    total_questions = 0
+    for slide_data in questions_data['slides']:
+        for q_data in slide_data['questions']:
+            temp_question = TempQuestion.objects.create(
+                quiz=quiz,
+                text=q_data['question_text'],
+                question_type='mcq',
+                slide_number=slide_data['slide_number']
             )
 
-    return len(questions_data['questions'])
+            for key, value in q_data['options'].items():
+                TempAnswer.objects.create(
+                    temp_question=temp_question,
+                    text=value,
+                    is_correct=(key == q_data['correct_answer']),
+                )
+            total_questions += 1
+
+    return total_questions

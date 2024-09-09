@@ -76,13 +76,23 @@ class TempAnswerSerializer(serializers.ModelSerializer):
 
 class TempQuestionSerializer(serializers.ModelSerializer):
     temp_answers = TempAnswerSerializer(many=True, read_only=True)
+    slide_number = serializers.IntegerField()
 
     class Meta:
         model = TempQuestion
-        fields = ['id', 'text', 'question_type', 'temp_answers']
+        fields = ['id', 'text', 'question_type', 'temp_answers', 'slide_number']
 
 
 class TempPDFSerializer(serializers.ModelSerializer):
     class Meta:
         model = TempPDF
         fields = ['id', 'file', 'uploaded_at']
+
+
+class TempQuestionBySlideSerializer(serializers.ModelSerializer):
+    temp_answers = TempAnswerSerializer(many=True, read_only=True)
+    slide_number = serializers.IntegerField()
+
+    class Meta:
+        model = TempQuestion
+        fields = ['id', 'text', 'question_type', 'temp_answers', 'slide_number']

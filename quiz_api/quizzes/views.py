@@ -48,7 +48,7 @@ class QuizViewSet(viewsets.ModelViewSet):
             num_questions = process_pdf_and_generate_questions(temp_pdf.file.path, quiz)
 
             # fetch the generated temp questions
-            temp_questions = TempQuestion.objects.filter(quiz=quiz)
+            temp_questions = TempQuestion.objects.filter(quiz=quiz).order_by('slide_number')
             serializer = TempQuestionSerializer(temp_questions, many=True)
 
             return Response({
