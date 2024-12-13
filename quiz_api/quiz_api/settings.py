@@ -206,6 +206,3 @@ LOGGING = {
         'level': 'INFO',
     },
 }
-
-ANTHROPIC_API_KEY = ('sk-ant-api03-93QJAprROgjxZ4kwa8U87QsH1LrnsCO9UYtcE3rNJQAdTIWfnkhO5Q8YY3f'
-                     '-_vRfir1xy2Yd11J7EpEzw6wJAQ-C75gjQAA')
